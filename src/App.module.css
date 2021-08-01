@@ -1,8 +1,7 @@
 .App {
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-gap: 16px;
+  display: block;
   padding-bottom: 24px;
+  background: aqua;
 }
 .App__container {
   text-align: center;

@@ -1,134 +1,113 @@
-import React from "react";
-import s from "./App.module.css";
-import Modal from "./Modal/Modal";
-import Searchbar from "./Searchbar/Searchbar";
-import ImageGallery from "./ImageGallery/ImageGallery";
-import Button from "./Button/Button";
-import Loader from "./Loader/Loader";
-import fetchOn from "./API/getPictures";
-import PropTypes from "prop-types";
+import React from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-export default class App extends React.Component {
-  state = {
-    isLoading: false,
-    showModal: false,
-    queryWord: "",
-    itemsPerPage: 12,
-    pageNumber: 1,
-    bigPicUrl: "",
-    data: [],
+import Searchbar from './components/Searchbar';
+import ImageGallery from './components/ImageGallery';
+import Button from './components/Button';
+import Modal from './components/Modal';
+import Loader from './components/Loader';
+import fetchImagesDataPixabay from './API/apiPixabay';
+import { scrollTop, scrollBottom } from './scroll.js';
+
+import styles from './App.module.css';
+
+export default function App() {
+  const [images, setImages] = useState([]);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setToatalPages] = useState(0);
+  const [url, setUrl] = useState('');
+  const [hint, setHint] = useState('');
+  const [showModal, setModla] = useState(false);
+  const [loading, setLoad] = useState(false);
+  const [empty, setEmpty] = useState(false);
+
+  const toggleModal = useCallback(() => {
+    setModla(showModal => !showModal);
+  }, []);
+
+  const getLargeImage = small => {
+    return images.find(image => image.small === small);
   };
 
-  getData = async () => {
-    const { queryWord, pageNumber, itemsPerPage } = this.state;
-    const options = { queryWord, pageNumber, itemsPerPage };
-    try {
-      this.setState({ isLoading: true });
-      const data = await fetchOn(options);
-      this.setState((prevState) => ({
-        data: [...prevState.data, ...data.hits],
-        smallPickList: data.hits.map((hit) => hit.webformatURL),
-        pageNumber: prevState.pageNumber + 1,
-      }));
-    } catch (error) {
-      throw error;
-    } finally {
-      this.setState({ isLoading: false });
+  const onChangeSearchQuery = searchValue => {
+    if (search !== searchValue) {
+      setImages([]);
+      setSearch(searchValue);
+      setPage(1);
+      setToatalPages(0);
+      setUrl('');
+      setHint('');
+      setModla(false);
+      setLoad(false);
+      setEmpty(false);
+    } else {
+      scrollTop();
     }
   };
 
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-    }));
-  };
-
-  openModal = (e) => {
-    e.preventDefault();
-    let imgObj = {};
-    const targetEl = e.target;
-    if (targetEl.nodeName === "IMG") {
-      imgObj = this.state.data.find(
-        ({ webformatURL }) => webformatURL === e.target.src
-      );
+  useEffect(() => {
+    if (!search) {
+      return;
     }
-    this.setState(() => ({
-      bigPickUrl: imgObj.largeImageURL,
-    }));
-    this.toggleModal();
+    async function fetchImages(search, page) {
+      try {
+        setLoad(true);
+        const { data, totalPages } = await fetchImagesDataPixabay(search, page);
+        setImages(prev => [...prev, ...data]);
+        setEmpty(data.length === 0);
+        setToatalPages(totalPages);
+        scrollBottom();
+      } catch (error) {
+        throw error;
+      } finally {
+        setLoad(false);
+      }
+    }
+
+    fetchImages(search, page);
+  }, [search, page]);
+
+  const onImageClickHandler = event => {
+    event.preventDefault();
+    const targetEl = event.target;
+    if (targetEl.nodeName === 'IMG') {
+      const { large, hint } = getLargeImage(targetEl.src);
+      setUrl(large);
+      setHint(hint);
+      toggleModal();
+    }
   };
 
-  handleChange = (e) => {
-    const { value } = e.currentTarget;
-    this.setState({ queryWord: value, pageNumber: 1, data: [] });
-  };
+  const left = totalPages - page;
 
-  onSearch = (e) => {
-    e.preventDefault();
-    this.setState({ [this.state.queryWord]: e.currentTarget.value });
-    this.getData();
-  };
-
-  loadMoreButton = async (e) => {
-    e.preventDefault();
-    await this.getData();
-    window.scrollTo({
-      top: document.documentElement.scrollHeight,
-      behavior: "smooth",
-    });
-  };
-
-  render() {
-    const { showModal, isLoading } = this.state;
-    return (
-      <div className={s.app}>
-        <Searchbar
-          handleChange={this.handleChange}
-          onSearch={this.onSearch}
-          state={this.state}
-        />
-        {isLoading && (
-          <div className={s.loader}>
-            <Loader
-              type="Puff"
-              color="#3f51b5"
-              height={100}
-              width={100}
-              timeout={1000} //3 secs
-            />
+  return (
+    <>
+      <div className={styles.App}>
+        <Searchbar onSubmit={onChangeSearchQuery} />
+        {empty ? (
+          <div className={styles.App__message}>
+            <p>Images are not found for "{search}"</p>
           </div>
-        )}
-
-        <ImageGallery
-          state={this.state}
-          toggleModal={this.toggleModal}
-          openModal={this.openModal}
-        />
-
-        {showModal && (
-          <Modal
-            onClose={this.toggleModal}
-            data={this.state.data}
-            bigPickUrl={this.state.bigPickUrl}
-          ></Modal>
-        )}
-
-        {this.state.data.length > 0 && !this.state.isLoading && (
-          <Button loadMoreButton={this.loadMoreButton} />
+        ) : (
+          <>
+            <ImageGallery imageList={images} onClick={onImageClickHandler} />
+            {page < totalPages && (
+              <div className={styles.App__container}>
+                <Button onClick={() => setPage(page => page + 1)}>
+                  Load more [{left}]
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
-    );
-  }
+      {showModal && (
+        <Modal onClose={toggleModal}>
+          <img className={styles.Modal__img} src={url} alt={hint} />
+        </Modal>
+      )}
+      {loading && <Loader />}
+    </>
+  );
 }
-
-App.propTypes = {
-  bigPickUrl: PropTypes.string,
-  isLoading: PropTypes.bool,
-  data: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      webformatURL: PropTypes.string.isRequired,
-      largeImageURL: PropTypes.string.isRequired,
-    })
-  ),
-};

@@ -1,11 +1,11 @@
-import React from "react";
-import { createPortal } from "react-dom";
+import React from 'react';
+import { createPortal } from 'react-dom';
 
-import styles from "./Loader.module.css";
+import styles from './Loader.module.css';
 
-const loaderRoot = document.querySelector("#front-root");
+const loaderRoot = document.querySelector('#front-root');
 
-function Loader() {
+export default function Loader() {
   return createPortal(
     <div className={styles.Spinner}>
       <div className={styles.Spinner__overlay}>
@@ -21,8 +21,6 @@ function Loader() {
         </div>
       </div>
     </div>,
-    loaderRoot
+    loaderRoot,
   );
 }
-
-export default Loader;
